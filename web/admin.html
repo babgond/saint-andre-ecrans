@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="fr">
+<head>
+ <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+ <title>Administration · Saint-André Écrans</title>
+ <link rel="stylesheet" href="/assets/ui.css"><script defer src="/assets/admin.js"></script>
+</head>
+<body>
+ <div id="shell">
+  <aside class="sidebar">
+   <a href="#tableau-de-bord" class="brand"><span class="brand-mark" aria-hidden="true"><i></i></span><span>Saint-André<small>Écrans</small></span></a>
+   <nav aria-label="Administration">
+    <a href="#tableau-de-bord" data-view="tableau-de-bord"><span aria-hidden="true">▦</span>Tableau de bord</a>
+    <a href="#bibliotheque" data-view="bibliotheque"><span aria-hidden="true">▧</span>Bibliothèque</a>
+    <a href="#programmation" data-view="programmation"><span aria-hidden="true">▤</span>Programmation</a>
+    <a href="#previsualisation" data-view="previsualisation"><span aria-hidden="true">▣</span>Prévisualisation</a>
+    <a href="#parametres" data-view="parametres"><span aria-hidden="true">⚙</span>Paramètres</a>
+   </nav>
+   <div class="sidebar-footer">
+    <div class="account"><span class="avatar" id="initials" aria-hidden="true">SA</span><span><strong id="account">Administration</strong><small>Microsoft 365</small></span></div>
+    <form method="post" action="/auth/logout"><button class="signout" type="submit" title="Se déconnecter" aria-label="Se déconnecter">⏻</button></form>
+   </div>
+  </aside>
+  <div class="workspace">
+   <header class="topbar"><span id="location">Administration</span><a href="/" target="_blank" rel="noopener" class="button secondary public-link">Ouvrir la diffusion</a></header>
+   <main id="content" aria-busy="true"><div class="intro"><h1>Tableau de bord</h1><p>Chargement des publications…</p></div></main>
+  </div>
+ </div>
+ <dialog id="dialog" aria-labelledby="dialog-title"></dialog>
+ <div id="notice" role="status" aria-live="polite"></div>
+</body>
+</html>

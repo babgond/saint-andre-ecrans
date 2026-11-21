@@ -1,0 +1,24 @@
+services:
+  ecrans:
+    image: saint-andre-ecrans:1.0.0
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - stockage:/data
+    networks:
+      proxy:
+        aliases:
+          - ${ECRANS_NETWORK_ALIAS:-saint-andre-ecrans}
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  stockage:
+    name: ${ECRANS_DATA_VOLUME:-saint-andre-ecrans-data}
+
+networks:
+  proxy:
+    external: true
+    name: ${CADDY_NETWORK:-caddy}
