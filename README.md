@@ -42,6 +42,8 @@ cp .env.example .env
 | ECRANS_DATA_VOLUME | Nom du volume Docker. Valeur par défaut **saint-andre-ecrans-data** |
 | BACKUP_KEEP | Nombre d’archives à garder, manuelles et automatiques comprises. Valeur par défaut **7** |
 
+Si Caddy utilise un proxy HTTP sortant, ajoutez **ECRANS_NETWORK_ALIAS** à sa variable **NO_PROXY** pour atteindre directement le service Docker.
+
 Copiez le bloc du **Caddyfile.example** dans la configuration existante de Caddy, puis lancez le service et rechargez Caddy.
 
 ~~~sh

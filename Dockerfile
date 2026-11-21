@@ -17,5 +17,5 @@ COPY --from=build /ecrans /usr/local/bin/ecrans
 USER ecrans
 ENV DATA_DIR=/data LISTEN_ADDR=:8080
 EXPOSE 8080
-HEALTHCHECK --interval=30s --timeout=4s CMD wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1
+HEALTHCHECK --interval=30s --timeout=4s CMD wget -Y off -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1
 ENTRYPOINT ["/usr/local/bin/ecrans"]
