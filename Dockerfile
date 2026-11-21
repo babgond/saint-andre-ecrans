@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1
 FROM golang:1.26-alpine AS build
 WORKDIR /src
-COPY go.mod go.sum ./
-RUN --mount=type=secret,id=build_ca \
-    if [ -f /run/secrets/build_ca ]; then export SSL_CERT_FILE=/run/secrets/build_ca; fi; \
-    go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /ecrans .
+RUN --mount=type=secret,id=build_ca \
+    --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    if [ -f /run/secrets/build_ca ]; then export SSL_CERT_FILE=/run/secrets/build_ca; fi; \
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /ecrans .
 
 FROM alpine:3.23
 LABEL org.opencontainers.image.title="Saint-André Écrans" \
