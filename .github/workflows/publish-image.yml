@@ -3,7 +3,13 @@ name: Publier l’image Docker
 on:
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Tag Git de la version (par exemple v1.0.1)'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -13,8 +19,20 @@ jobs:
   publish:
     runs-on: ubuntu-24.04
     steps:
+      - name: Vérifier le tag
+        id: release
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag attendu au format vMAJEUR.MINEUR.CORRECTIF." >&2
+            exit 1
+          fi
+          printf 'ref=refs/tags/%s\nversion=%s\n' "$RELEASE_TAG" "${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
+          ref: ${{ steps.release.outputs.ref }}
           persist-credentials: false
 
       - name: Tester l’application
@@ -29,13 +47,14 @@ jobs:
       - name: Publier sur GitHub Container Registry
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.release.outputs.version }}
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          revision=$(git rev-parse HEAD)
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
           printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
           docker buildx build --platform linux/amd64,linux/arm64 --push \
-            --tag "$image:$version" \
-            --label "org.opencontainers.image.version=$version" \
+            --tag "$image:$VERSION" \
+            --label "org.opencontainers.image.version=$VERSION" \
             --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
-            --label "org.opencontainers.image.revision=$GITHUB_SHA" .
-          docker buildx imagetools inspect "$image:$version"
+            --label "org.opencontainers.image.revision=$revision" .
+          docker buildx imagetools inspect "$image:$VERSION"
