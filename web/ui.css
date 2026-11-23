@@ -34,6 +34,8 @@ nav a[aria-current] span{color:#83bdff}
 .signout{border:0;border-radius:8px;background:transparent;color:#d0ddef;padding:5px 8px;font-size:1.25rem}
 .signout:hover{background:#294365}
 .topbar{min-height:69px;padding:12px clamp(20px,4.2vw,66px);display:flex;justify-content:space-between;align-items:center;gap:12px;background:#fff;border-bottom:1px solid var(--line);color:var(--muted);font-size:.88rem;font-weight:620}
+.topbar-info{display:grid;gap:2px}
+.app-version{font-size:.75rem;font-weight:500}
 #content{margin:auto;max-width:1500px;padding:33px clamp(20px,4.2vw,66px) 48px}
 .intro{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:24px}
 .intro p,.muted{color:var(--muted)}

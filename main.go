@@ -24,6 +24,8 @@ import (
 //go:embed web/*
 var web embed.FS
 
+var appVersion = "dev"
+
 var pages = template.Must(template.ParseFS(web, "web/*.html"))
 
 func main() {
@@ -130,7 +132,11 @@ func (a *application) page(templateName string) http.HandlerFunc {
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if err := pages.ExecuteTemplate(w, templateName, struct{ DisplayName string }{name}); err != nil {
+		data := struct {
+			DisplayName string
+			Version     string
+		}{DisplayName: name, Version: appVersion}
+		if err := pages.ExecuteTemplate(w, templateName, data); err != nil {
 			log.Printf("Affichage de %s : %v", templateName, err)
 		}
 	}

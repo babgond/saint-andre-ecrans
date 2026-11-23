@@ -3,7 +3,7 @@
 <head>
  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
  <title>Administration · {{.DisplayName}} Écrans</title>
- <link rel="stylesheet" href="/assets/ui.css"><script defer src="/assets/admin.js"></script>
+ <link rel="stylesheet" href="/assets/ui.css?v={{.Version}}"><script defer src="/assets/admin.js?v={{.Version}}"></script>
 </head>
 <body>
  <div id="shell">
@@ -22,7 +22,13 @@
    </div>
   </aside>
   <div class="workspace">
-   <header class="topbar"><span id="location">Administration</span><a href="/" target="_blank" rel="noopener" class="button secondary public-link">Ouvrir la diffusion</a></header>
+   <header class="topbar">
+    <div class="topbar-info">
+     <span id="location">Administration</span>
+     <small class="app-version">Version {{.Version}}</small>
+    </div>
+    <a href="/" target="_blank" rel="noopener" class="button secondary public-link">Ouvrir la diffusion</a>
+   </header>
    <main id="content" aria-busy="true"><div class="intro"><h1>Tableau de bord</h1><p>Chargement des publications…</p></div></main>
   </div>
  </div>

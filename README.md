@@ -37,7 +37,7 @@ cp .env.example .env
 | ENTRA_CLIENT_ID | ID de l’inscription d’application |
 | ENTRA_CLIENT_SECRET | Valeur du secret client |
 | ENTRA_ADMIN_OBJECT_IDS | ID d’objet autorisés, séparés par des virgules |
-| ECRANS_IMAGE | Image à télécharger. Valeur par défaut **ghcr.io/babgond/saint-andre-ecrans:1.0.3** |
+| ECRANS_IMAGE | Image à télécharger. Valeur par défaut **ghcr.io/babgond/saint-andre-ecrans:1.0.4** |
 | CADDY_NETWORK | Nom du réseau Docker déjà utilisé par Caddy. Valeur par défaut **caddy** |
 | ECRANS_NETWORK_ALIAS | Alias du conteneur sur le réseau Caddy. Valeur par défaut **saint-andre-ecrans** |
 | ECRANS_DATA_VOLUME | Nom du volume Docker. Valeur par défaut **saint-andre-ecrans-data** |
@@ -61,6 +61,8 @@ docker compose ps
 curl -fsS https://ecrans.saint-andre.tech/healthz
 ~~~
 
+La version installée apparaît en haut de chaque page de l’administration.
+
 En cas de test sur le même VPS que la production, donnez à l’instance de test un volume, un projet Compose et un alias réseau distincts et reportez l’alias dans le bloc Caddy. Utilisez une URI de redirection supplémentaire dans Entra si le domaine diffère. Gardez un conteneur applicatif par volume.
 
 ## Publier des visuels
@@ -83,7 +85,7 @@ Pour tester une restauration, utilisez un nouveau volume Docker. Fournissez le c
 archive=/chemin/vers/ecrans-archive.tar.gz
 volume=saint-andre-ecrans-restauration
 docker run --rm -i --network none -v "$volume:/data" \
-  ghcr.io/babgond/saint-andre-ecrans:1.0.3 restore /dev/stdin /data < "$archive"
+  ghcr.io/babgond/saint-andre-ecrans:1.0.4 restore /dev/stdin /data < "$archive"
 ~~~
 
 La commande vérifie SQLite et la présence des fichiers référencés. Elle exige un volume vide. Pour basculer vers le volume restauré, arrêtez le service avec **docker compose stop ecrans**, réglez **ECRANS_DATA_VOLUME** sur le nouveau nom et relancez avec **docker compose up -d**. Conservez l’ancien volume jusqu’à la fin de la vérification. Pour mettre à jour l’application, prenez une sauvegarde, puis sélectionnez le nouveau tag avec **ECRANS_IMAGE** dans **.env**. Relancez **docker compose pull** et **docker compose up -d** en réutilisant le même volume. Vérifiez la santé du service avant de reprendre la diffusion.

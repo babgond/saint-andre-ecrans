@@ -94,6 +94,15 @@ func playlistIDs(t *testing.T, a *application, want ...int64) {
 	}
 }
 
+func TestAdminVersion(t *testing.T) {
+	a := testApp(t)
+	admin := call(t, a, "GET", "/admin", nil, true, nil, 200)
+	if body := admin.Body.String(); !strings.Contains(body, "Version "+appVersion+"</small>") ||
+		!strings.Contains(body, "/assets/admin.js?v="+appVersion) {
+		t.Fatal("version absente de l’administration ou de l’URL du script")
+	}
+}
+
 func TestDisplayName(t *testing.T) {
 	a := testApp(t)
 	// A volume created before this setting has no display_identity table.
