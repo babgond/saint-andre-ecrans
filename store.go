@@ -12,6 +12,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	_ "modernc.org/sqlite"
 )
@@ -51,6 +53,9 @@ CREATE TABLE IF NOT EXISTS settings (
  transition_ms INTEGER NOT NULL, fallback INTEGER NOT NULL, logo TEXT NOT NULL
 );
 INSERT OR IGNORE INTO settings VALUES (1, 15, 'fade', 1000, 0, '');
+CREATE TABLE IF NOT EXISTS display_identity (
+ id INTEGER PRIMARY KEY CHECK(id=1), name TEXT NOT NULL
+);
 `
 
 func openApp(root string) (*application, error) {
@@ -192,6 +197,35 @@ func (a *application) settings() (settings, error) {
 	return s, err
 }
 
+const defaultDisplayName = "Saint-André"
+
+func (a *application) displayName() (string, error) {
+	var name string
+	err := a.db.QueryRow("SELECT coalesce((SELECT name FROM display_identity WHERE id=1), ?)", defaultDisplayName).Scan(&name)
+	return name, err
+}
+
+func (a *application) saveDisplayName(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Name string `json:"name"`
+	}
+	if !decode(w, r, &input) {
+		return
+	}
+	name := strings.TrimSpace(input.Name)
+	if name == "" || utf8.RuneCountInString(name) > 80 || strings.ContainsFunc(name, unicode.IsControl) {
+		problem(w, 400, "Saisissez un nom de 1 à 80 caractères sur une seule ligne.")
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if _, err := a.db.Exec("INSERT INTO display_identity (id,name) VALUES (1,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name", name); err != nil {
+		internal(w, err)
+		return
+	}
+	w.WriteHeader(204)
+}
+
 func (a *application) saveSettings(w http.ResponseWriter, r *http.Request) {
 	var s settings
 	if !decode(w, r, &s) {
@@ -233,6 +267,11 @@ func (a *application) state(w http.ResponseWriter, r *http.Request) {
 		internal(w, err)
 		return
 	}
+	name, err := a.displayName()
+	if err != nil {
+		internal(w, err)
+		return
+	}
 	used, err := folderSize(a.data)
 	if err != nil {
 		internal(w, err)
@@ -249,15 +288,16 @@ func (a *application) state(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	jsonResponse(w, 200, struct {
-		Images   []publication `json:"images"`
-		Settings settings      `json:"settings"`
-		Used     int64         `json:"used"`
-		Free     int64         `json:"free"`
-		Total    int64         `json:"total"`
-		Today    string        `json:"today"`
-		Backups  []backupFile  `json:"backups"`
-		Account  string        `json:"account"`
-	}{images, s, used, free, total, now.In(paris).Format("2006-01-02"), archives, a.session(r).Name})
+		DisplayName string        `json:"displayName"`
+		Images      []publication `json:"images"`
+		Settings    settings      `json:"settings"`
+		Used        int64         `json:"used"`
+		Free        int64         `json:"free"`
+		Total       int64         `json:"total"`
+		Today       string        `json:"today"`
+		Backups     []backupFile  `json:"backups"`
+		Account     string        `json:"account"`
+	}{name, images, s, used, free, total, now.In(paris).Format("2006-01-02"), archives, a.session(r).Name})
 }
 
 func folderSize(path string) (int64, error) {
@@ -437,6 +477,11 @@ func (a *application) playlist(w http.ResponseWriter, r *http.Request) {
 		internal(w, err)
 		return
 	}
+	name, err := a.displayName()
+	if err != nil {
+		internal(w, err)
+		return
+	}
 	rows, err := a.db.Query("SELECT id,file FROM publications WHERE deleted_at IS NULL AND draft=0 AND enabled=1 AND (start_at IS NULL OR start_at<=?) AND (end_at IS NULL OR end_at>?) ORDER BY position,id", now, now)
 	if err != nil {
 		internal(w, err)
@@ -461,13 +506,14 @@ func (a *application) playlist(w http.ResponseWriter, r *http.Request) {
 		s.Logo = "/media/" + s.Logo
 	}
 	jsonResponse(w, 200, struct {
-		Slides   []slide  `json:"slides"`
-		Settings settings `json:"settings"`
-	}{items, s})
+		DisplayName string   `json:"displayName"`
+		Slides      []slide  `json:"slides"`
+		Settings    settings `json:"settings"`
+	}{name, items, s})
 }
 
 func (a *application) preview(w http.ResponseWriter, r *http.Request) {
-	page("screen.html")(w, r)
+	a.page("screen.html")(w, r)
 }
 
 func matchDiskFile(dir, name string) bool {

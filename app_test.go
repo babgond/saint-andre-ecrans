@@ -94,6 +94,48 @@ func playlistIDs(t *testing.T, a *application, want ...int64) {
 	}
 }
 
+func TestDisplayName(t *testing.T) {
+	a := testApp(t)
+	// A volume created before this setting has no display_identity table.
+	if _, err := a.db.Exec("DROP TABLE display_identity"); err != nil {
+		t.Fatal(err)
+	}
+	upgraded, err := openApp(a.data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer upgraded.db.Close()
+	upgraded.auth.origin = a.auth.origin
+	upgraded.auth.sessions = a.auth.sessions
+
+	check := func(path string, signedIn bool, expected string) {
+		t.Helper()
+		result := call(t, upgraded, "GET", path, nil, signedIn, nil, 200)
+		if !strings.Contains(result.Body.String(), expected) {
+			t.Errorf("%s : nom attendu %q", path, expected)
+		}
+	}
+	check("/", false, "<span>Saint-André</span>")
+	call(t, upgraded, "PUT", "/api/admin/display-name", strings.NewReader(`{"name":"Autre site"}`), false, nil, 401)
+	callJSON(t, upgraded, "PUT", "display-name", `{"name":" "}`, 400)
+	callJSON(t, upgraded, "PUT", "display-name", `{"name":"Lieu\nsur deux lignes"}`, 400)
+	callJSON(t, upgraded, "PUT", "display-name", `{"name":"`+strings.Repeat("é", 81)+`"}`, 400)
+	callJSON(t, upgraded, "PUT", "display-name", `{"name":"  Médiathèque <Nord>  "}`, 204)
+	check("/", false, "<span>Médiathèque &lt;Nord&gt;</span>")
+	check("/admin", false, "<title>Connexion · Médiathèque &lt;Nord&gt; Écrans</title>")
+	check("/admin", true, `id="display-name">Médiathèque &lt;Nord&gt;</span>`)
+	check("/admin/preview", true, "<span>Médiathèque &lt;Nord&gt;</span>")
+	for _, route := range []string{"/api/playlist", "/api/admin/state"} {
+		result := call(t, upgraded, "GET", route, nil, route == "/api/admin/state", nil, 200)
+		var branding struct {
+			DisplayName string
+		}
+		if err := json.Unmarshal(result.Body.Bytes(), &branding); err != nil || branding.DisplayName != "Médiathèque <Nord>" {
+			t.Errorf("%s : nom affiché %q, erreur %v", route, branding.DisplayName, err)
+		}
+	}
+}
+
 func TestPublicationLifecycleAndRestore(t *testing.T) {
 	a := testApp(t)
 	call(t, a, "GET", "/api/admin/state", nil, false, nil, 401)
@@ -145,6 +187,7 @@ func TestPublicationLifecycleAndRestore(t *testing.T) {
 	}
 	postImage(t, a, "logo", "Logo.png", pngImage(t, 6), 204)
 	callJSON(t, a, "PUT", "settings", `{"duration":6,"transition":"slide","transitionMs":500,"fallback":true}`, 204)
+	callJSON(t, a, "PUT", "display-name", `{"name":"Médiathèque"}`, 204)
 	w = call(t, a, "POST", "/api/admin/backups", nil, true, nil, 201)
 	var b backupFile
 	if err := json.Unmarshal(w.Body.Bytes(), &b); err != nil {
@@ -170,6 +213,9 @@ func TestPublicationLifecycleAndRestore(t *testing.T) {
 	}
 	if _, err := os.Stat(storagePath(dest, branding, s.Logo)); err != nil {
 		t.Fatal(err)
+	}
+	if name, err := restored.displayName(); err != nil || name != "Médiathèque" {
+		t.Fatalf("nom restauré : %q, %v", name, err)
 	}
 	playlistIDs(t, restored, 1, 2)
 	dest2 := t.TempDir()

@@ -2,13 +2,13 @@
 <html lang="fr">
 <head>
  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
- <title>Administration · Saint-André Écrans</title>
+ <title>Administration · {{.DisplayName}} Écrans</title>
  <link rel="stylesheet" href="/assets/ui.css"><script defer src="/assets/admin.js"></script>
 </head>
 <body>
  <div id="shell">
   <aside class="sidebar">
-   <a href="#tableau-de-bord" class="brand"><span class="brand-mark" aria-hidden="true"><i></i></span><span>Saint-André<small>Écrans</small></span></a>
+   <a href="#tableau-de-bord" class="brand"><span class="brand-mark" aria-hidden="true"><i></i></span><span><span id="display-name">{{.DisplayName}}</span><small>Écrans</small></span></a>
    <nav aria-label="Administration">
     <a href="#tableau-de-bord" data-view="tableau-de-bord"><span aria-hidden="true">▦</span>Tableau de bord</a>
     <a href="#bibliotheque" data-view="bibliotheque"><span aria-hidden="true">▧</span>Bibliothèque</a>

@@ -103,6 +103,12 @@
       if (!items.some(function (item) { return item.url === url; })) delete failed[url];
     });
     settings = data.settings;
+    if (data.displayName) {
+      wordmark.textContent = data.displayName;
+      document.title = data.displayName + ' Écrans';
+      logo.alt = 'Logo ' + data.displayName;
+      document.getElementById('screen').setAttribute('aria-label', 'Diaporama · ' + data.displayName);
+    }
     var url = settings.logo || '';
     if (logo.getAttribute('src') !== (url || null)) {
       logo.hidden = true;

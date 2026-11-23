@@ -5,6 +5,7 @@ import (
 	"embed"
 	"encoding/json"
 	"errors"
+	"html/template"
 	"io"
 	"io/fs"
 	"log"
@@ -22,6 +23,8 @@ import (
 
 //go:embed web/*
 var web embed.FS
+
+var pages = template.Must(template.ParseFS(web, "web/*.html"))
 
 func main() {
 	if len(os.Args) == 4 && os.Args[1] == "restore" {
@@ -74,7 +77,7 @@ func (a *application) routes() http.Handler {
 	for _, slug := range []string{"ui.css", "admin.js", "screen.css", "screen.js"} {
 		mux.Handle("GET /assets/"+slug, http.StripPrefix("/assets/", http.FileServer(http.FS(assets))))
 	}
-	mux.HandleFunc("GET /{$}", page("screen.html"))
+	mux.HandleFunc("GET /{$}", a.page("screen.html"))
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		if err := a.db.PingContext(r.Context()); err != nil {
 			http.Error(w, "Indisponible", 503)
@@ -97,6 +100,7 @@ func (a *application) routes() http.Handler {
 	mux.HandleFunc("POST /api/admin/trash", a.protected(a.trash))
 	mux.HandleFunc("GET /api/admin/image/{file}", a.protected(a.adminMedia))
 	mux.HandleFunc("PUT /api/admin/settings", a.protected(a.saveSettings))
+	mux.HandleFunc("PUT /api/admin/display-name", a.protected(a.saveDisplayName))
 	mux.HandleFunc("POST /api/admin/logo", a.protected(a.logo))
 	mux.HandleFunc("DELETE /api/admin/logo", a.protected(a.removeLogo))
 	mux.HandleFunc("POST /api/admin/backups", a.protected(a.makeBackup))
@@ -118,15 +122,17 @@ func (a *application) routes() http.Handler {
 	})
 }
 
-func page(name string) http.HandlerFunc {
+func (a *application) page(templateName string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		body, err := web.ReadFile("web/" + name)
+		name, err := a.displayName()
 		if err != nil {
-			http.NotFound(w, r)
+			internal(w, err)
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write(body)
+		if err := pages.ExecuteTemplate(w, templateName, struct{ DisplayName string }{name}); err != nil {
+			log.Printf("Affichage de %s : %v", templateName, err)
+		}
 	}
 }
 

@@ -1,4 +1,4 @@
-ecrans.st-andre.com {
+ecrans.saint-andre.tech {
     header Strict-Transport-Security "max-age=31536000"
     reverse_proxy saint-andre-ecrans:8080
 }

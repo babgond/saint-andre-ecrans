@@ -145,3 +145,4 @@ dialog::backdrop{background:#0c1c33a6}
 .calendar-periods{margin-top:16px}
 .calendar-periods .button{justify-self:start;padding-left:0}
 @media(max-width:520px){.calendar-controls .button{padding:4px 7px;white-space:normal;max-width:76px;font-size:.75rem}.calendar .day{min-height:54px}.visual-row .row-controls{justify-content:end}.visual-row .row-controls .button{padding:5px 7px;min-height:32px}.visual-row .icon-button{width:25px}}
+#display-name{overflow-wrap:anywhere}

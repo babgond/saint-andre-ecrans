@@ -245,10 +245,10 @@ func (a *application) protected(next http.HandlerFunc) http.HandlerFunc {
 
 func (a *application) adminPage(w http.ResponseWriter, r *http.Request) {
 	if a.session(r).Expires.IsZero() {
-		page("login.html")(w, r)
+		a.page("login.html")(w, r)
 		return
 	}
-	page("admin.html")(w, r)
+	a.page("admin.html")(w, r)
 }
 
 func (a *application) logout(w http.ResponseWriter, r *http.Request) {

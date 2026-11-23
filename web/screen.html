@@ -1,10 +1,10 @@
 <!doctype html>
 <html lang="fr">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Saint-André Écrans</title><link rel="stylesheet" href="/assets/screen.css"><script defer src="/assets/screen.js"></script></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{{.DisplayName}} Écrans</title><link rel="stylesheet" href="/assets/screen.css"><script defer src="/assets/screen.js"></script></head>
 <body>
-<main id="screen" aria-label="Diaporama des communications de Saint-André">
+<main id="screen" aria-label="Diaporama des communications de {{.DisplayName}}">
  <div id="stage"><div class="layer"><img alt=""></div><div class="layer"><img alt=""></div></div>
- <div id="idle" class="visible"><img alt="Logo Saint-André" hidden><span>Saint-André</span></div>
+ <div id="idle" class="visible"><img alt="Logo {{.DisplayName}}" hidden><span>{{.DisplayName}}</span></div>
 </main>
 </body>
 </html>

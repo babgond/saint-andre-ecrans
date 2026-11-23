@@ -80,6 +80,8 @@
     const fresh = await api('/api/admin/state');
     if (sequence !== requestSequence) return;
     data = fresh;
+    document.getElementById('display-name').textContent = data.displayName;
+    document.title = 'Administration · ' + data.displayName + ' Écrans';
     document.getElementById('account').textContent = data.account;
     document.getElementById('initials').textContent = data.account.trim().split(/\s+/).slice(0, 2).map(s => Array.from(s)[0]).join('').toUpperCase();
     if (!month) month = new Date(data.today.slice(0, 7) + '-01T00:00:00Z');
@@ -191,7 +193,7 @@
         '</ul>' : '<p class="muted">Aucune publication avec une date de diffusion sur ce mois.</p>') + '</section>';
   }
   function preview() {
-    return intro('Prévisualisation', 'Retrouvez le même diaporama que sur les écrans de Saint-André.',
+    return intro('Prévisualisation', 'Retrouvez le même diaporama que sur vos écrans.',
       '<a class="button primary" href="/" target="_blank" rel="noopener">Ouvrir en plein écran</a>') +
       '<section class="card" aria-label="Diaporama">' + frame() + '</section>';
   }
@@ -205,11 +207,15 @@
       '<label class="field">Effet<select name="transition">' + Object.entries(options).map(([k, name]) => '<option value="' + k + '" ' + (k === s.transition ? 'selected' : '') + '>' + name + '</option>').join('') + '</select></label>' +
       '<label class="check"><input type="checkbox" name="fallback" ' + (s.fallback ? 'checked' : '') + '>Privilégier le fondu sur les Airtame</label>' +
       '<button type="submit" class="button primary">Enregistrer</button></form>' +
-      '<form class="card" id="logo-settings"><div><h2>Écran de veille</h2><p class="muted small">Le logo s’affiche quand aucun visuel n’est actif.</p></div>' +
-      (s.logo ? '<img class="logo-image" alt="Logo de veille" src="/media/' + encodeURIComponent(s.logo) + '">' : '<p class="muted">Saint-André s’affiche en texte. Ajoutez le logo officiel en PNG.</p>') +
+      '<section class="card"><h2>Identité des écrans</h2>' +
+      '<form class="stack" id="name-settings"><label class="field">Nom affiché<input required name="displayName" value="' + html(data.displayName) + '"></label>' +
+      '<p class="muted small">Ce nom identifie l’application et s’affiche en veille si aucun logo n’est disponible.</p>' +
+      '<button type="submit" class="button primary">Enregistrer le nom</button></form>' +
+      '<form class="stack" id="logo-settings">' +
+      (s.logo ? '<img class="logo-image" alt="Logo de veille" src="/media/' + encodeURIComponent(s.logo) + '">' : '<p class="muted">Ajoutez un logo PNG pour l’afficher en veille.</p>') +
       '<label class="field">Logo PNG<input required name="logo" type="file" accept="image/png,.png"></label><div class="row-controls">' +
       '<button type="submit" class="button primary">' + (s.logo ? 'Remplacer le logo' : 'Importer le logo') + '</button>' +
-      (s.logo ? button('Retirer', 'remove-logo', 'danger') : '') + '</div></form>' +
+      (s.logo ? button('Retirer', 'remove-logo', 'danger') : '') + '</div></form></section>' +
       '<section class="card"><div><h2>Stockage et sauvegardes</h2><p class="muted small">' + bytes(data.used) + ' utilisés · ' + bytes(data.free) + ' libres sur le volume</p></div>' +
       '<p class="muted">Une sauvegarde est créée chaque jour. Téléchargez une copie pour la conserver hors du VPS.</p>' +
       button('Créer une sauvegarde', 'backup') + (data.backups.length ? '<ul class="compact-list">' + data.backups.map(b =>
@@ -429,7 +435,7 @@
         }
         case 'prev-month':
         case 'next-month': month.setUTCMonth(month.getUTCMonth() + (action === 'next-month' ? 1 : -1)); render(); break;
-        case 'remove-logo': confirmAction('Retirer le logo', 'L’écran de veille affichera le nom Saint-André.',
+        case 'remove-logo': confirmAction('Retirer le logo', 'L’écran de veille affichera « ' + html(data.displayName) + ' ».',
           'Retirer le logo', async () => { await api('/api/admin/logo', { method: 'DELETE' }); await updated('Logo retiré.'); }); break;
         case 'backup':
           target.disabled = true;
@@ -481,7 +487,7 @@
   });
   content.addEventListener('submit', async e => {
     const f = e.target;
-    if (f.id !== 'display-settings' && f.id !== 'logo-settings') return;
+    if (f.id !== 'display-settings' && f.id !== 'logo-settings' && f.id !== 'name-settings') return;
     e.preventDefault();
     const submit = f.querySelector('[type=submit]');
     if (submit.disabled) return;
@@ -492,6 +498,9 @@
         await json('settings', 'PUT', { duration: Number(fields.duration.value), transition: fields.transition.value,
           transitionMs: Math.round(Number(fields.seconds.value) * 1000), fallback: fields.fallback.checked });
         await updated('Paramètres enregistrés.');
+      } else if (f.id === 'name-settings') {
+        await json('display-name', 'PUT', { name: f.elements.displayName.value });
+        await updated('Nom affiché enregistré.');
       } else {
         await sendFile('logo', f.elements.logo.files[0]);
         await updated('Logo de veille enregistré.');
