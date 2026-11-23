@@ -115,7 +115,7 @@ func TestDisplayName(t *testing.T) {
 			t.Errorf("%s : nom attendu %q", path, expected)
 		}
 	}
-	check("/", false, "<span>Saint-André</span>")
+	check("/", false, "<span>Saint André</span>")
 	call(t, upgraded, "PUT", "/api/admin/display-name", strings.NewReader(`{"name":"Autre site"}`), false, nil, 401)
 	callJSON(t, upgraded, "PUT", "display-name", `{"name":" "}`, 400)
 	callJSON(t, upgraded, "PUT", "display-name", `{"name":"Lieu\nsur deux lignes"}`, 400)

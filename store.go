@@ -197,7 +197,7 @@ func (a *application) settings() (settings, error) {
 	return s, err
 }
 
-const defaultDisplayName = "Saint-André"
+const defaultDisplayName = "Saint André"
 
 func (a *application) displayName() (string, error) {
 	var name string

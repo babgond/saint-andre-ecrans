@@ -58,7 +58,7 @@ func main() {
 		defer cancel()
 		_ = srv.Shutdown(shutdown)
 	}()
-	log.Printf("Saint-André Écrans écoute sur %s", srv.Addr)
+	log.Printf("Saint André Écrans écoute sur %s", srv.Addr)
 	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
