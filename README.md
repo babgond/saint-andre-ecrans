@@ -23,7 +23,7 @@ Les cookies de session sont sécurisés et valables huit heures. Un redémarrage
 
 Le VPS doit disposer de Docker Compose v2 et de Caddy. Faites pointer le DNS du domaine vers le VPS qui reçoit les connexions HTTPS. Le service rejoint le réseau Docker existant de Caddy et ne publie aucun port hôte.
 
-Les fichiers `compose.yaml`, `.env.example` et `Caddyfile.example` suffisent pour le déploiement. Récupérez-les depuis le dépôt GitHub privé. Dans ce dossier sur le VPS, créez **.env** depuis **.env.example** avec des permissions privées.
+Les fichiers `compose.yaml`, `.env.example` et `Caddyfile.example` suffisent pour le déploiement. Récupérez-les depuis le dépôt GitHub public. Dans ce dossier sur le VPS, créez **.env** depuis **.env.example** avec des permissions privées.
 
 ~~~sh
 umask 077
@@ -45,11 +45,7 @@ cp .env.example .env
 
 Si Caddy utilise un proxy HTTP sortant, ajoutez **ECRANS_NETWORK_ALIAS** à sa variable **NO_PROXY** pour atteindre directement le service Docker.
 
-L’image privée est disponible pour les VPS Linux AMD64 et ARM64. Connectez Docker au registre avec un compte GitHub qui a accès au paquet. À l’invite du mot de passe, saisissez un [jeton d’accès personnel classique](https://github.com/settings/tokens) avec la permission `read:packages`.
-
-~~~sh
-docker login ghcr.io -u babgond
-~~~
+L’image Docker publique est disponible pour les VPS Linux AMD64 et ARM64. Docker Compose la télécharge sans compte GitHub.
 
 Copiez le bloc du **Caddyfile.example** dans la configuration existante de Caddy. Téléchargez l’image et démarrez le service, puis rechargez Caddy.
 
