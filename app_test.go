@@ -202,9 +202,7 @@ func TestPublicationLifecycleAndRestore(t *testing.T) {
 	}
 	old := "/media/" + images[0].File
 	w := call(t, a, "GET", old, nil, false, nil, 200)
-	if !bytes.Equal(w.Body.Bytes(), one) {
-		t.Fatal("l’original a changé")
-	}
+	assertSamePixels(t, one, w.Body.Bytes())
 	call(t, a, "GET", "/media/"+images[1].File, nil, false, nil, 404)
 	call(t, a, "GET", "/api/admin/image/"+images[0].File+"?mini=1", nil, true, nil, 200)
 	if _, err := a.db.Exec("UPDATE publications SET start_at=? WHERE id=2", time.Now().Unix()-1); err != nil {

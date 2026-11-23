@@ -31,7 +31,8 @@ var tempName = regexp.MustCompile("^[.]upload-[0-9]+$")
 type imageUpload struct {
 	name, file, hash string
 	width, height    int
-	original, thumb  []byte
+	content, thumb   []byte
+	uploadBytes      int
 }
 
 func (a *application) reserveUpload(w http.ResponseWriter) bool {
@@ -63,12 +64,12 @@ func readImage(w http.ResponseWriter, r *http.Request, thumbnail bool) (imageUpl
 		problem(w, 415, "Choisissez un fichier PNG ou JPEG.")
 		return item, false
 	}
-	item.original, err = io.ReadAll(r.Body)
-	if err != nil || len(item.original) > maxImage {
+	item.content, err = io.ReadAll(r.Body)
+	if err != nil || len(item.content) > maxImage {
 		problem(w, 413, "Le fichier doit peser au maximum 25 Mio.")
 		return item, false
 	}
-	cfg, format, err := image.DecodeConfig(bytes.NewReader(item.original))
+	cfg, format, err := image.DecodeConfig(bytes.NewReader(item.content))
 	if err != nil || (format == "png" && extension != ".png") || (format == "jpeg" && extension == ".png") || (format != "png" && format != "jpeg") {
 		problem(w, 415, "Le contenu du fichier ne correspond pas à une image PNG ou JPEG.")
 		return item, false
@@ -77,7 +78,7 @@ func readImage(w http.ResponseWriter, r *http.Request, thumbnail bool) (imageUpl
 		problem(w, 400, "L’image dépasse 24 mégapixels ou 10 000 pixels sur un côté.")
 		return item, false
 	}
-	img, _, err := image.Decode(bytes.NewReader(item.original))
+	img, _, err := image.Decode(bytes.NewReader(item.content))
 	if err != nil {
 		problem(w, 415, "L’image est endommagée.")
 		return item, false
@@ -87,8 +88,10 @@ func readImage(w http.ResponseWriter, r *http.Request, thumbnail bool) (imageUpl
 		extension = ".jpg"
 	}
 	item.file = hex.EncodeToString(randomBytes(16)) + extension
-	digest := sha256.Sum256(item.original)
+	digest := sha256.Sum256(item.content)
 	item.hash = hex.EncodeToString(digest[:])
+	item.uploadBytes = len(item.content)
+	item.content = optimizeImage(item.content, img, format)
 	if thumbnail {
 		width, height := item.width, item.height
 		scale := max(float64(width)/640, float64(height)/360)
@@ -155,7 +158,7 @@ func (a *application) canStore(w http.ResponseWriter, n int64) bool {
 }
 
 func (a *application) saveImage(item imageUpload) error {
-	if err := writeAtomic(filepath.Join(a.data, originals), item.file, item.original); err != nil {
+	if err := writeAtomic(filepath.Join(a.data, originals), item.file, item.content); err != nil {
 		return err
 	}
 	return writeAtomic(filepath.Join(a.data, thumbs), thumbName(item.file), item.thumb)
@@ -203,7 +206,7 @@ func (a *application) upload(w http.ResponseWriter, r *http.Request) {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.duplicate(w, item.hash, 0) || !a.canStore(w, int64(len(item.original)+len(item.thumb))) {
+	if a.duplicate(w, item.hash, 0) || !a.canStore(w, int64(len(item.content)+len(item.thumb))) {
 		return
 	}
 	if err := a.saveImage(item); err != nil {
@@ -213,14 +216,15 @@ func (a *application) upload(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := a.db.Exec(`INSERT INTO publications(name,file,hash,width,height,bytes,thumb_bytes,position,start_at,end_at,enabled,draft)
  VALUES (?,?,?,?,?,?,?,(SELECT coalesce(max(position),0)+1 FROM publications),?,?,1,?)`,
-		item.name, item.file, item.hash, item.width, item.height, len(item.original), len(item.thumb), begin, end, draft)
+		item.name, item.file, item.hash, item.width, item.height, len(item.content), len(item.thumb), begin, end, draft)
 	if err != nil {
 		a.clearOrphans()
 		internal(w, err)
 		return
 	}
 	id, _ := result.LastInsertId()
-	jsonResponse(w, 201, map[string]any{"id": id, "width": item.width, "height": item.height})
+	jsonResponse(w, 201, map[string]any{"id": id, "width": item.width, "height": item.height,
+		"bytes": len(item.content), "uploadBytes": item.uploadBytes})
 }
 
 func (a *application) replace(w http.ResponseWriter, r *http.Request) {
@@ -236,7 +240,8 @@ func (a *application) replace(w http.ResponseWriter, r *http.Request) {
 	defer a.mu.Unlock()
 	var id int64
 	var hash string
-	err := a.db.QueryRow("SELECT id,hash FROM publications WHERE id=? AND deleted_at IS NULL", r.PathValue("id")).Scan(&id, &hash)
+	var savedBytes int
+	err := a.db.QueryRow("SELECT id,hash,bytes FROM publications WHERE id=? AND deleted_at IS NULL", r.PathValue("id")).Scan(&id, &hash, &savedBytes)
 	if errors.Is(err, sql.ErrNoRows) {
 		problem(w, 404, "Visuel introuvable.")
 		return
@@ -245,11 +250,11 @@ func (a *application) replace(w http.ResponseWriter, r *http.Request) {
 		internal(w, err)
 		return
 	}
-	if hash == item.hash {
+	if hash == item.hash && savedBytes <= len(item.content) {
 		w.WriteHeader(204)
 		return
 	}
-	if a.duplicate(w, item.hash, id) || !a.canStore(w, int64(len(item.original)+len(item.thumb))) {
+	if a.duplicate(w, item.hash, id) || !a.canStore(w, int64(len(item.content)+len(item.thumb))) {
 		return
 	}
 	if err := a.saveImage(item); err != nil {
@@ -258,7 +263,7 @@ func (a *application) replace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	result, err := a.db.Exec("UPDATE publications SET name=?,file=?,hash=?,width=?,height=?,bytes=?,thumb_bytes=? WHERE id=?",
-		item.name, item.file, item.hash, item.width, item.height, len(item.original), len(item.thumb), id)
+		item.name, item.file, item.hash, item.width, item.height, len(item.content), len(item.thumb), id)
 	a.clearOrphans()
 	changed(w, result, err)
 }
@@ -278,10 +283,10 @@ func (a *application) logo(w http.ResponseWriter, r *http.Request) {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if !a.canStore(w, int64(len(item.original))) {
+	if !a.canStore(w, int64(len(item.content))) {
 		return
 	}
-	if err := writeAtomic(filepath.Join(a.data, branding), item.file, item.original); err != nil {
+	if err := writeAtomic(filepath.Join(a.data, branding), item.file, item.content); err != nil {
 		a.clearOrphans()
 		internal(w, err)
 		return

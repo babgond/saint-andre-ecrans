@@ -370,7 +370,7 @@
         if (mode.value === 'draft') params.set('draft', '1');
         if (mode.value === 'scheduled') params.set('start', form.elements.start.value);
         if (form.elements.end.value) params.set('end', form.elements.end.value);
-        let success = 0, completed = 0, index = 0;
+        let success = 0, completed = 0, index = 0, savedBytes = 0;
         const count = files.size;
         const total = [...files.values()].reduce((sum, item) => sum + Math.max(1, item.file.size), 0);
         progress.max = total;
@@ -383,10 +383,11 @@
             progressStatus.textContent = 'Envoi du fichier ' + current;
             item.error = '';
             try {
-              await sendFile('images?' + params, item.file, (loaded, uploaded) => {
+              const result = await sendFile('images?' + params, item.file, (loaded, uploaded) => {
                 progress.value = completed + Math.min(loaded, item.file.size);
                 if (uploaded) progressStatus.textContent = 'Validation du fichier ' + current;
               });
+              savedBytes += (result.uploadBytes ?? 0) - (result.bytes ?? 0);
               files.delete(key);
               success++;
             } catch (err) { item.error = err.message; }
@@ -398,7 +399,8 @@
         if (success) {
           await refresh();
           render(true);
-          showNotice(success + (success === 1 ? ' visuel importé.' : ' visuels importés.'));
+          const imported = success + (success === 1 ? ' visuel importé.' : ' visuels importés.');
+          showNotice(imported + (savedBytes > 0 ? ' ' + bytes(savedBytes) + ' économisés.' : ''));
         }
         if (files.size) {
           fileList();

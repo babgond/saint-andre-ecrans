@@ -37,7 +37,7 @@ cp .env.example .env
 | ENTRA_CLIENT_ID | ID de l’inscription d’application |
 | ENTRA_CLIENT_SECRET | Valeur du secret client |
 | ENTRA_ADMIN_OBJECT_IDS | ID d’objet autorisés, séparés par des virgules |
-| ECRANS_IMAGE | Image à télécharger. Valeur par défaut **ghcr.io/babgond/saint-andre-ecrans:1.1.0** |
+| ECRANS_IMAGE | Image à télécharger. Valeur par défaut **ghcr.io/babgond/saint-andre-ecrans:1.2.0** |
 | CADDY_NETWORK | Nom du réseau Docker déjà utilisé par Caddy. Valeur par défaut **caddy** |
 | ECRANS_NETWORK_ALIAS | Alias du conteneur sur le réseau Caddy. Valeur par défaut **saint-andre-ecrans** |
 | ECRANS_DATA_VOLUME | Nom du volume Docker. Valeur par défaut **saint-andre-ecrans-data** |
@@ -64,17 +64,18 @@ En cas de test sur le même VPS que la production, donnez à l’instance de tes
 ## Publier des visuels
 
 - Ouvrez **Bibliothèque** puis **Importer des visuels**. Glissez vos PNG et JPEG dans la zone d’import ou cliquez dessus pour les sélectionner. Une barre indique la progression de l’envoi du lot. L’import publie immédiatement par défaut. Vous pouvez choisir une date de début ou un brouillon et ajouter une date de fin.
+- À l’import, les PNG sont recompressés sans perte et les JPEG compatibles sont réencodés à haute qualité. Les dimensions sont conservées. L’application garde un seul fichier de diffusion, en utilisant la version recompressée si elle est plus légère. La bibliothèque affiche le poids stocké et l’import indique les économies réalisées.
 - Le format recommandé est **1920 × 1080**. Les autres ratios sont signalés et s’affichent dans leurs proportions. Les fichiers sont limités à 25 Mio, 24 mégapixels et 10 000 pixels par côté.
-- Dans **Gérer**, modifiez les dates, désactivez un visuel ou remplacez son original. Pour republier un visuel expiré, retirez ou repoussez sa date de fin. Utilisez la poignée ou les boutons de déplacement pour définir l’ordre.
+- Dans **Gérer**, modifiez les dates, désactivez un visuel ou remplacez son fichier. Pour republier un visuel expiré, retirez ou repoussez sa date de fin. Utilisez la poignée ou les boutons de déplacement pour définir l’ordre.
 - Dans **Paramètres**, modifiez le **Nom affiché** dans **Identité des écrans**. « Saint André » est proposé par défaut. Ce nom s’affiche aussi en veille, et vous pouvez ajouter un logo PNG pour l’y remplacer. La durée de chaque visuel est réglable de 5 à 120 secondes et celle des transitions de 0,5 à 3 secondes. Le réglage « Privilégier le fondu sur les Airtame » remplace les autres effets animés par un fondu.
 - Dans **Paramètres → Horloge**, activez l’affichage de l’heure sur les visuels et choisissez un des quatre coins. L’horloge indique l’heure de Paris au format 24 h et est désactivée par défaut.
 - Les dates sont saisies en heure de Paris. Une heure sautée au printemps est refusée. Une heure répétée en automne désigne la première occurrence. Le serveur recalcule l’éligibilité à chaque consultation du diaporama. Les Airtame vérifient la liste toutes les 60 secondes et basculent à la fin du visuel en cours si la rotation continue.
 
-Un visuel expiré reste en bibliothèque. La corbeille conserve l’original jusqu’à la suppression définitive. Les nouveaux visuels et ceux restaurés sont ajoutés à la fin de la liste.
+Un visuel expiré reste en bibliothèque. La corbeille conserve le visuel jusqu’à la suppression définitive. Les nouveaux visuels et ceux restaurés sont ajoutés à la fin de la liste.
 
 ## Sauvegarder et restaurer
 
-Une archive est produite au démarrage si aucune sauvegarde n’existe pour la date du jour en heure de Paris, puis lors du premier contrôle de la journée. Le contrôle a lieu toutes les 30 minutes. L’archive contient une copie cohérente de SQLite, les images originales, les miniatures et le logo. **Paramètres** permet de déclencher ou télécharger une sauvegarde. Gardez des copies hors du VPS et conservez séparément la configuration Caddy et le fichier **.env**, qui contient le secret Entra.
+Une archive est produite au démarrage si aucune sauvegarde n’existe pour la date du jour en heure de Paris, puis lors du premier contrôle de la journée. Le contrôle a lieu toutes les 30 minutes. L’archive contient une copie cohérente de SQLite, les fichiers de diffusion, les miniatures et le logo. **Paramètres** permet de déclencher ou télécharger une sauvegarde. Gardez des copies hors du VPS et conservez séparément la configuration Caddy et le fichier **.env**, qui contient le secret Entra.
 
 Pour tester une restauration, utilisez un nouveau volume Docker. Fournissez le chemin d’une archive téléchargée dans la variable ci-dessous.
 
@@ -82,7 +83,7 @@ Pour tester une restauration, utilisez un nouveau volume Docker. Fournissez le c
 archive=/chemin/vers/ecrans-archive.tar.gz
 volume=saint-andre-ecrans-restauration
 docker run --rm -i --network none -v "$volume:/data" \
-  ghcr.io/babgond/saint-andre-ecrans:1.1.0 restore /dev/stdin /data < "$archive"
+  ghcr.io/babgond/saint-andre-ecrans:1.2.0 restore /dev/stdin /data < "$archive"
 ~~~
 
 La commande vérifie SQLite et la présence des fichiers référencés. Elle exige un volume vide. Pour basculer vers le volume restauré, arrêtez le service avec **docker compose stop ecrans**, réglez **ECRANS_DATA_VOLUME** sur le nouveau nom et relancez avec **docker compose up -d**. Conservez l’ancien volume jusqu’à la fin de la vérification. Pour mettre à jour l’application, prenez une sauvegarde, puis sélectionnez le nouveau tag avec **ECRANS_IMAGE** dans **.env**. Relancez **docker compose pull** et **docker compose up -d** en réutilisant le même volume. Vérifiez la santé du service avant de reprendre la diffusion.
