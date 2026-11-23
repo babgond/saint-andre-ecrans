@@ -45,7 +45,9 @@
     noticeTimeout = setTimeout(() => { notice.textContent = ''; }, 6500);
   }
   async function api(path, options = {}) {
-    const response = await fetch(path, options);
+    return readResponse(await fetch(path, options));
+  }
+  async function readResponse(response) {
     if (response.status === 401) {
       location.assign('/admin');
       throw new Error('Votre session a expiré.');
@@ -59,10 +61,25 @@
   const json = (path, method, value) => api('/api/admin/' + path, {
     method, body: JSON.stringify(value), headers: { 'Content-Type': 'application/json' }
   });
-  function sendFile(path, file) {
+  function sendFile(path, file, onProgress) {
     const name = encodeURIComponent(file.name).replace(/['()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
-    return api('/api/admin/' + path, {
-      method: 'POST', body: file, headers: { 'Content-Disposition': "attachment; filename*=UTF-8''" + name }
+    const url = '/api/admin/' + path;
+    const disposition = "attachment; filename*=UTF-8''" + name;
+    if (!onProgress) return api(url, {
+      method: 'POST', body: file, headers: { 'Content-Disposition': disposition }
+    });
+    return new Promise((resolve, reject) => {
+      const request = new XMLHttpRequest();
+      request.open('POST', url);
+      request.setRequestHeader('Content-Disposition', disposition);
+      request.upload.onprogress = e => onProgress(e.loaded, false);
+      request.upload.onload = () => onProgress(file.size, true);
+      request.onload = () => {
+        const body = request.status === 204 ? null : request.responseText;
+        readResponse(new Response(body, { status: request.status })).then(resolve, reject);
+      };
+      request.onerror = request.onabort = () => reject(new Error('L’envoi a été interrompu. Réessayez.'));
+      request.send(file);
     });
   }
   function route() {
@@ -199,6 +216,9 @@
   }
   function preferences() {
     const s = data.settings;
+    const clock = data.clock;
+    const positions = { 'top-left': 'En haut à gauche', 'top-right': 'En haut à droite',
+      'bottom-left': 'En bas à gauche', 'bottom-right': 'En bas à droite' };
     const options = { fade: 'Fondu', zoom: 'Zoom lent', slide: 'Glissement', black: 'Fondu noir', none: 'Aucun effet' };
     return intro('Paramètres', 'Réglez l’affichage et gérez les sauvegardes.') + lowDisk() +
       '<div class="settings-grid"><form class="card" id="display-settings"><h2>Diffusion</h2>' +
@@ -216,6 +236,11 @@
       '<label class="field">Logo PNG<input required name="logo" type="file" accept="image/png,.png"></label><div class="row-controls">' +
       '<button type="submit" class="button primary">' + (s.logo ? 'Remplacer le logo' : 'Importer le logo') + '</button>' +
       (s.logo ? button('Retirer', 'remove-logo', 'danger') : '') + '</div></form></section>' +
+      '<form class="card" id="clock-settings"><h2>Horloge</h2>' +
+      '<label class="check"><input type="checkbox" name="enabled" ' + (clock.enabled ? 'checked' : '') + '>Afficher l’heure sur les visuels</label>' +
+      '<label class="field">Position<select name="position">' + Object.entries(positions).map(([key, label]) =>
+        '<option value="' + key + '" ' + (key === clock.position ? 'selected' : '') + '>' + label + '</option>').join('') + '</select></label>' +
+      '<p class="muted small">Heure de Paris, au format 24 h.</p><button type="submit" class="button primary">Enregistrer l’horloge</button></form>' +
       '<section class="card"><div><h2>Stockage et sauvegardes</h2><p class="muted small">' + bytes(data.used) + ' utilisés · ' + bytes(data.free) + ' libres sur le volume</p></div>' +
       '<p class="muted">Une sauvegarde est créée chaque jour. Téléchargez une copie pour la conserver hors du VPS.</p>' +
       button('Créer une sauvegarde', 'backup') + (data.backups.length ? '<ul class="compact-list">' + data.backups.map(b =>
@@ -258,20 +283,28 @@
   }
   const accepted = '.png,.jpg,.jpeg,image/png,image/jpeg';
   function importDialog() {
-    openDialog('Importer des visuels', '<form class="stack" id="import-form"><label class="dropzone" for="image-files"><strong>Glissez vos images ici</strong>' +
-      '<span>ou sélectionnez des fichiers PNG et JPEG</span><input id="image-files" type="file" accept="' + accepted + '" multiple></label>' +
-      '<ul class="file-list" aria-live="polite"></ul><p class="muted small">25 Mio par image. Format conseillé 1920 × 1080.</p>' +
+    openDialog('Importer des visuels', '<form class="stack" id="import-form"><label class="dropzone" for="image-files"><strong>Glissez-déposez vos images ici</strong>' +
+      '<span>ou cliquez pour choisir des PNG et JPEG</span><input id="image-files" type="file" accept="' + accepted + '" multiple></label>' +
+      '<ul class="file-list" aria-live="polite"></ul><div class="upload-progress" hidden><span role="status"></span>' +
+      '<progress value="0" aria-label="Progression de l’import"></progress></div><p class="muted small">25 Mio par image. Format conseillé 1920 × 1080.</p>' +
       '<label class="field">Publication<select name="mode"><option value="immediate">Publier immédiatement</option><option value="scheduled">Programmer</option>' +
       '<option value="draft">Enregistrer comme brouillon</option></select></label>' + dateFields('', '') + '<p class="muted small">Dates en heure de Paris.</p>' + closesForm('Importer') + '</form>');
     const form = document.getElementById('import-form');
     const files = new Map();
     const list = form.querySelector('.file-list');
     const dropzone = form.querySelector('.dropzone');
+    const fileInput = form.querySelector('#image-files');
+    const progress = form.querySelector('progress');
+    const progressBox = form.querySelector('.upload-progress');
+    const progressStatus = progressBox.querySelector('span');
+    let dragDepth = 0;
     function fileList() {
-      list.innerHTML = [...files.values()].map((item, i) => '<li><span>' + html(item.file.name) + '<small>' + html(item.detail) +
+      list.innerHTML = [...files.values()].map((item, i) => '<li><span>' + html(item.file.name) + '<small>' + html(item.error || item.detail) +
         '</small></span><button type="button" class="icon-button" aria-label="Retirer ' + html(item.file.name) + '" data-remove="' + i + '">×</button></li>').join('');
     }
     function append(fileListInput) {
+      if (dialog.dataset.busy) return;
+      progressBox.hidden = true;
       for (const file of fileListInput) {
         const key = [file.name, file.lastModified, file.size].join('/');
         if (files.has(key)) continue;
@@ -290,7 +323,7 @@
       }
       fileList();
     }
-    form.querySelector('#image-files').addEventListener('change', e => { append(e.target.files); e.target.value = ''; });
+    fileInput.addEventListener('change', e => { append(e.target.files); e.target.value = ''; });
     list.addEventListener('click', e => {
       const index = e.target.dataset.remove;
       if (index === undefined || dialog.dataset.busy) return;
@@ -306,11 +339,29 @@
     }
     mode.addEventListener('change', modeChanged);
     modeChanged();
-    ['dragover', 'dragleave', 'drop'].forEach(type => dropzone.addEventListener(type, e => {
+    const carriesFiles = e => Array.from(e.dataTransfer.types).includes('Files');
+    form.addEventListener('dragover', e => {
+      if (!carriesFiles(e)) return;
       e.preventDefault();
-      dropzone.classList.toggle('over', type === 'dragover');
-      if (type === 'drop' && !dialog.dataset.busy) append(e.dataTransfer.files);
-    }));
+      e.dataTransfer.dropEffect = dropzone.contains(e.target) && !dialog.dataset.busy ? 'copy' : 'none';
+    });
+    dropzone.addEventListener('dragenter', e => {
+      if (!carriesFiles(e) || dialog.dataset.busy) return;
+      e.preventDefault();
+      dragDepth++;
+      dropzone.classList.add('over');
+    });
+    dropzone.addEventListener('dragleave', () => {
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (!dragDepth) dropzone.classList.remove('over');
+    });
+    form.addEventListener('drop', e => {
+      if (!carriesFiles(e) && !e.dataTransfer.files.length) return;
+      e.preventDefault();
+      dragDepth = 0;
+      dropzone.classList.remove('over');
+      if (dropzone.contains(e.target)) append(e.dataTransfer.files);
+    });
     form.addEventListener('submit', e => {
       e.preventDefault();
       runDialog(form, async () => {
@@ -319,11 +370,31 @@
         if (mode.value === 'draft') params.set('draft', '1');
         if (mode.value === 'scheduled') params.set('start', form.elements.start.value);
         if (form.elements.end.value) params.set('end', form.elements.end.value);
-        let success = 0;
-        for (const [key, item] of files) {
-          try { await sendFile('images?' + params, item.file); files.delete(key); success++; }
-          catch (err) { item.detail = err.message; }
-        }
+        let success = 0, completed = 0, index = 0;
+        const count = files.size;
+        const total = [...files.values()].reduce((sum, item) => sum + Math.max(1, item.file.size), 0);
+        progress.max = total;
+        progress.value = 0;
+        progressBox.hidden = false;
+        fileInput.disabled = true;
+        try {
+          for (const [key, item] of files) {
+            const current = ++index + ' sur ' + count;
+            progressStatus.textContent = 'Envoi du fichier ' + current;
+            item.error = '';
+            try {
+              await sendFile('images?' + params, item.file, (loaded, uploaded) => {
+                progress.value = completed + Math.min(loaded, item.file.size);
+                if (uploaded) progressStatus.textContent = 'Validation du fichier ' + current;
+              });
+              files.delete(key);
+              success++;
+            } catch (err) { item.error = err.message; }
+            completed += Math.max(1, item.file.size);
+            progress.value = completed;
+          }
+          progressStatus.textContent = success + ' sur ' + count + ' visuels importés';
+        } finally { fileInput.disabled = false; }
         if (success) {
           await refresh();
           render(true);
@@ -487,7 +558,7 @@
   });
   content.addEventListener('submit', async e => {
     const f = e.target;
-    if (f.id !== 'display-settings' && f.id !== 'logo-settings' && f.id !== 'name-settings') return;
+    if (f.id !== 'display-settings' && f.id !== 'logo-settings' && f.id !== 'name-settings' && f.id !== 'clock-settings') return;
     e.preventDefault();
     const submit = f.querySelector('[type=submit]');
     if (submit.disabled) return;
@@ -498,6 +569,9 @@
         await json('settings', 'PUT', { duration: Number(fields.duration.value), transition: fields.transition.value,
           transitionMs: Math.round(Number(fields.seconds.value) * 1000), fallback: fields.fallback.checked });
         await updated('Paramètres enregistrés.');
+      } else if (f.id === 'clock-settings') {
+        await json('clock', 'PUT', { enabled: f.elements.enabled.checked, position: f.elements.position.value });
+        await updated('Horloge enregistrée.');
       } else if (f.id === 'name-settings') {
         await json('display-name', 'PUT', { name: f.elements.displayName.value });
         await updated('Nom affiché enregistré.');

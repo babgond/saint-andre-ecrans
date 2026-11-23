@@ -102,6 +102,7 @@ func (a *application) routes() http.Handler {
 	mux.HandleFunc("POST /api/admin/trash", a.protected(a.trash))
 	mux.HandleFunc("GET /api/admin/image/{file}", a.protected(a.adminMedia))
 	mux.HandleFunc("PUT /api/admin/settings", a.protected(a.saveSettings))
+	mux.HandleFunc("PUT /api/admin/clock", a.protected(a.saveClock))
 	mux.HandleFunc("PUT /api/admin/display-name", a.protected(a.saveDisplayName))
 	mux.HandleFunc("POST /api/admin/logo", a.protected(a.logo))
 	mux.HandleFunc("DELETE /api/admin/logo", a.protected(a.removeLogo))

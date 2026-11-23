@@ -4,6 +4,35 @@
   var idle = document.getElementById('idle');
   var logo = idle.querySelector('img');
   var wordmark = idle.querySelector('span');
+  var clock = document.getElementById('screen-clock');
+  var clockFormatter, clockTimer;
+  var clockPositions = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
+  function updateClock() {
+    var time = clockFormatter.format(new Date());
+    if (clock.textContent !== time) {
+      clock.textContent = time;
+      clock.dateTime = time;
+    }
+  }
+  function configureClock(options) {
+    if (!options || !options.enabled || clockPositions.indexOf(options.position) < 0) {
+      clock.hidden = true;
+      clearInterval(clockTimer);
+      clockTimer = undefined;
+      return;
+    }
+    if (!clockFormatter) {
+      try {
+        clockFormatter = new Intl.DateTimeFormat('fr-FR', {
+          timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit', hour12: false
+        });
+      } catch (_) { return; }
+    }
+    clock.className = options.position;
+    updateClock();
+    clock.hidden = false;
+    if (clockTimer === undefined) clockTimer = setInterval(updateClock, 1000);
+  }
   var items = [], settings = { duration: 15, transition: 'fade', transitionMs: 1000 };
   var failed = Object.create(null);
   var current = '', front = 0, playing = false, timer, pending, preloaded;
@@ -103,6 +132,7 @@
       if (!items.some(function (item) { return item.url === url; })) delete failed[url];
     });
     settings = data.settings;
+    configureClock(data.clock);
     if (data.displayName) {
       wordmark.textContent = data.displayName;
       document.title = data.displayName + ' Écrans';

@@ -145,6 +145,37 @@ func TestDisplayName(t *testing.T) {
 	}
 }
 
+func TestScreenClock(t *testing.T) {
+	a := testApp(t)
+	if _, err := a.db.Exec("DROP TABLE screen_clock"); err != nil {
+		t.Fatal(err)
+	}
+	upgraded, err := openApp(a.data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer upgraded.db.Close()
+	upgraded.auth.origin = a.auth.origin
+	upgraded.auth.sessions = a.auth.sessions
+
+	check := func(path string, admin bool, expected screenClock) {
+		t.Helper()
+		response := call(t, upgraded, "GET", path, nil, admin, nil, 200)
+		var data struct{ Clock screenClock }
+		if err := json.Unmarshal(response.Body.Bytes(), &data); err != nil || data.Clock != expected {
+			t.Errorf("%s : horloge %+v, erreur %v", path, data.Clock, err)
+		}
+	}
+	check("/api/playlist", false, screenClock{Position: "top-right"})
+	call(t, upgraded, "PUT", "/api/admin/clock", nil, false, nil, 401)
+	callJSON(t, upgraded, "PUT", "clock", `{"enabled":true,"position":"middle"}`, 400)
+	callJSON(t, upgraded, "PUT", "clock", `{"enabled":true,"position":"bottom-left"}`, 204)
+	check("/api/playlist", false, screenClock{Enabled: true, Position: "bottom-left"})
+	check("/api/admin/state", true, screenClock{Enabled: true, Position: "bottom-left"})
+	callJSON(t, upgraded, "PUT", "clock", `{"enabled":false,"position":"bottom-left"}`, 204)
+	check("/api/playlist", false, screenClock{Position: "bottom-left"})
+}
+
 func TestPublicationLifecycleAndRestore(t *testing.T) {
 	a := testApp(t)
 	call(t, a, "GET", "/api/admin/state", nil, false, nil, 401)
@@ -197,6 +228,7 @@ func TestPublicationLifecycleAndRestore(t *testing.T) {
 	postImage(t, a, "logo", "Logo.png", pngImage(t, 6), 204)
 	callJSON(t, a, "PUT", "settings", `{"duration":6,"transition":"slide","transitionMs":500,"fallback":true}`, 204)
 	callJSON(t, a, "PUT", "display-name", `{"name":"Médiathèque"}`, 204)
+	callJSON(t, a, "PUT", "clock", `{"enabled":true,"position":"top-left"}`, 204)
 	w = call(t, a, "POST", "/api/admin/backups", nil, true, nil, 201)
 	var b backupFile
 	if err := json.Unmarshal(w.Body.Bytes(), &b); err != nil {
@@ -225,6 +257,9 @@ func TestPublicationLifecycleAndRestore(t *testing.T) {
 	}
 	if name, err := restored.displayName(); err != nil || name != "Médiathèque" {
 		t.Fatalf("nom restauré : %q, %v", name, err)
+	}
+	if clock, err := restored.clock(); err != nil || !clock.Enabled || clock.Position != "top-left" {
+		t.Fatalf("horloge restaurée : %+v, %v", clock, err)
 	}
 	playlistIDs(t, restored, 1, 2)
 	dest2 := t.TempDir()

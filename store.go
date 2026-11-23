@@ -56,6 +56,10 @@ INSERT OR IGNORE INTO settings VALUES (1, 15, 'fade', 1000, 0, '');
 CREATE TABLE IF NOT EXISTS display_identity (
  id INTEGER PRIMARY KEY CHECK(id=1), name TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS screen_clock (
+ id INTEGER PRIMARY KEY CHECK(id=1), enabled INTEGER NOT NULL, position TEXT NOT NULL
+);
+INSERT OR IGNORE INTO screen_clock (id,enabled,position) VALUES (1,0,'top-right');
 `
 
 func openApp(root string) (*application, error) {
@@ -226,6 +230,35 @@ func (a *application) saveDisplayName(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(204)
 }
 
+type screenClock struct {
+	Enabled  bool   `json:"enabled"`
+	Position string `json:"position"`
+}
+
+func (a *application) clock() (screenClock, error) {
+	var clock screenClock
+	err := a.db.QueryRow("SELECT enabled,position FROM screen_clock WHERE id=1").Scan(&clock.Enabled, &clock.Position)
+	return clock, err
+}
+
+func (a *application) saveClock(w http.ResponseWriter, r *http.Request) {
+	var clock screenClock
+	if !decode(w, r, &clock) {
+		return
+	}
+	if !slices.Contains([]string{"top-left", "top-right", "bottom-left", "bottom-right"}, clock.Position) {
+		problem(w, 400, "Choisissez un coin de l’écran pour l’horloge.")
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if _, err := a.db.Exec("UPDATE screen_clock SET enabled=?,position=? WHERE id=1", clock.Enabled, clock.Position); err != nil {
+		internal(w, err)
+		return
+	}
+	w.WriteHeader(204)
+}
+
 func (a *application) saveSettings(w http.ResponseWriter, r *http.Request) {
 	var s settings
 	if !decode(w, r, &s) {
@@ -272,6 +305,11 @@ func (a *application) state(w http.ResponseWriter, r *http.Request) {
 		internal(w, err)
 		return
 	}
+	clock, err := a.clock()
+	if err != nil {
+		internal(w, err)
+		return
+	}
 	used, err := folderSize(a.data)
 	if err != nil {
 		internal(w, err)
@@ -288,6 +326,7 @@ func (a *application) state(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	jsonResponse(w, 200, struct {
+		Clock       screenClock   `json:"clock"`
 		DisplayName string        `json:"displayName"`
 		Images      []publication `json:"images"`
 		Settings    settings      `json:"settings"`
@@ -297,7 +336,7 @@ func (a *application) state(w http.ResponseWriter, r *http.Request) {
 		Today       string        `json:"today"`
 		Backups     []backupFile  `json:"backups"`
 		Account     string        `json:"account"`
-	}{name, images, s, used, free, total, now.In(paris).Format("2006-01-02"), archives, a.session(r).Name})
+	}{clock, name, images, s, used, free, total, now.In(paris).Format("2006-01-02"), archives, a.session(r).Name})
 }
 
 func folderSize(path string) (int64, error) {
@@ -482,6 +521,11 @@ func (a *application) playlist(w http.ResponseWriter, r *http.Request) {
 		internal(w, err)
 		return
 	}
+	clock, err := a.clock()
+	if err != nil {
+		internal(w, err)
+		return
+	}
 	rows, err := a.db.Query("SELECT id,file FROM publications WHERE deleted_at IS NULL AND draft=0 AND enabled=1 AND (start_at IS NULL OR start_at<=?) AND (end_at IS NULL OR end_at>?) ORDER BY position,id", now, now)
 	if err != nil {
 		internal(w, err)
@@ -506,10 +550,11 @@ func (a *application) playlist(w http.ResponseWriter, r *http.Request) {
 		s.Logo = "/media/" + s.Logo
 	}
 	jsonResponse(w, 200, struct {
-		DisplayName string   `json:"displayName"`
-		Slides      []slide  `json:"slides"`
-		Settings    settings `json:"settings"`
-	}{name, items, s})
+		Clock       screenClock `json:"clock"`
+		DisplayName string      `json:"displayName"`
+		Slides      []slide     `json:"slides"`
+		Settings    settings    `json:"settings"`
+	}{clock, name, items, s})
 }
 
 func (a *application) preview(w http.ResponseWriter, r *http.Request) {
