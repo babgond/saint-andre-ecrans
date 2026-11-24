@@ -6,7 +6,7 @@
   var wordmark = idle.querySelector('span');
   var clock = document.getElementById('screen-clock');
   var clockFormatter, clockTimer;
-  var clockPositions = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
+  var clockPositions = ['top-left', 'top-center', 'top-right', 'bottom-left', 'bottom-center', 'bottom-right'];
   function updateClock() {
     var time = clockFormatter.format(new Date());
     if (clock.textContent !== time) {

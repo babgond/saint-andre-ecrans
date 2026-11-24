@@ -172,6 +172,11 @@ func TestScreenClock(t *testing.T) {
 	callJSON(t, upgraded, "PUT", "clock", `{"enabled":true,"position":"bottom-left"}`, 204)
 	check("/api/playlist", false, screenClock{Enabled: true, Position: "bottom-left"})
 	check("/api/admin/state", true, screenClock{Enabled: true, Position: "bottom-left"})
+	for _, position := range []string{"top-center", "bottom-center"} {
+		callJSON(t, upgraded, "PUT", "clock", `{"enabled":true,"position":"`+position+`"}`, 204)
+		check("/api/playlist", false, screenClock{Enabled: true, Position: position})
+		check("/api/admin/state", true, screenClock{Enabled: true, Position: position})
+	}
 	callJSON(t, upgraded, "PUT", "clock", `{"enabled":false,"position":"bottom-left"}`, 204)
 	check("/api/playlist", false, screenClock{Position: "bottom-left"})
 }

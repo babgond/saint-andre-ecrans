@@ -246,8 +246,8 @@ func (a *application) saveClock(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &clock) {
 		return
 	}
-	if !slices.Contains([]string{"top-left", "top-right", "bottom-left", "bottom-right"}, clock.Position) {
-		problem(w, 400, "Choisissez un coin de l’écran pour l’horloge.")
+	if !slices.Contains([]string{"top-left", "top-center", "top-right", "bottom-left", "bottom-center", "bottom-right"}, clock.Position) {
+		problem(w, 400, "Choisissez une position valide pour l’horloge.")
 		return
 	}
 	a.mu.Lock()

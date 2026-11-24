@@ -217,8 +217,10 @@
   function preferences() {
     const s = data.settings;
     const clock = data.clock;
-    const positions = { 'top-left': 'En haut à gauche', 'top-right': 'En haut à droite',
-      'bottom-left': 'En bas à gauche', 'bottom-right': 'En bas à droite' };
+    const positions = {
+      'top-left': 'En haut à gauche', 'top-center': 'En haut au centre', 'top-right': 'En haut à droite',
+      'bottom-left': 'En bas à gauche', 'bottom-center': 'En bas au centre', 'bottom-right': 'En bas à droite'
+    };
     const options = { fade: 'Fondu', zoom: 'Zoom lent', slide: 'Glissement', black: 'Fondu noir', none: 'Aucun effet' };
     return intro('Paramètres', 'Réglez l’affichage et gérez les sauvegardes.') + lowDisk() +
       '<div class="settings-grid"><form class="card" id="display-settings"><h2>Diffusion</h2>' +

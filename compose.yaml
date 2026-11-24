@@ -1,6 +1,6 @@
 services:
   ecrans:
-    image: ${ECRANS_IMAGE:-ghcr.io/babgond/saint-andre-ecrans:1.2.0}
+    image: ${ECRANS_IMAGE:-ghcr.io/babgond/saint-andre-ecrans:1.2.1}
     restart: unless-stopped
     env_file: .env
     volumes:

@@ -2,7 +2,8 @@
 #idle span{max-width:90%;overflow-wrap:anywhere;text-align:center}
 #screen-clock{position:absolute;z-index:4;pointer-events:none;padding:.3em .52em;border-radius:.28em;background:#111b2ad9;color:#fff;font:700 clamp(16px,4vw,60px)/1.15 system-ui,sans-serif;font-variant-numeric:tabular-nums}
 #screen-clock[hidden],#idle.visible~#screen-clock{display:none}
-#screen-clock.top-left,#screen-clock.top-right{top:4%}
-#screen-clock.bottom-left,#screen-clock.bottom-right{bottom:4%}
+#screen-clock.top-left,#screen-clock.top-center,#screen-clock.top-right{top:4%}
+#screen-clock.bottom-left,#screen-clock.bottom-center,#screen-clock.bottom-right{bottom:4%}
 #screen-clock.top-left,#screen-clock.bottom-left{left:4%}
 #screen-clock.top-right,#screen-clock.bottom-right{right:4%}
+#screen-clock.top-center,#screen-clock.bottom-center{left:50%;transform:translateX(-50%)}
