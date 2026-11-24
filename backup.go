@@ -108,6 +108,136 @@ func (a *application) backupList() ([]backupFile, error) {
 	return result, nil
 }
 
+type backupPlan struct {
+	Frequency string
+	lastPurge int64
+}
+
+func (a *application) backupPlan() (backupPlan, error) {
+	var plan backupPlan
+	err := a.db.QueryRow("SELECT frequency,last_purge FROM backup_preferences WHERE id=1").Scan(&plan.Frequency, &plan.lastPurge)
+	return plan, err
+}
+
+func (p backupPlan) due(now, last time.Time) bool {
+	if p.Frequency == "off" {
+		return false
+	}
+	if p.lastPurge > 0 {
+		if purged := time.Unix(p.lastPurge, 0); purged.After(last) {
+			last = purged
+		}
+	}
+	if last.IsZero() {
+		return true
+	}
+	var scheduled time.Time
+	switch p.Frequency {
+	case "daily":
+		scheduled = last.Add(24 * time.Hour)
+	case "weekly":
+		scheduled = last.In(paris).AddDate(0, 0, 7)
+	case "fortnightly":
+		scheduled = last.In(paris).AddDate(0, 0, 15)
+	case "monthly":
+		local := last.In(paris)
+		year, month, day := local.Date()
+		lastDay := time.Date(year, month+2, 0, 0, 0, 0, 0, paris).Day()
+		scheduled = time.Date(year, month+1, min(day, lastDay), local.Hour(), local.Minute(), local.Second(), local.Nanosecond(), paris)
+	default:
+		return false
+	}
+	return !now.Before(scheduled)
+}
+
+func (a *application) saveBackupFrequency(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Frequency string `json:"frequency"`
+	}
+	if !decode(w, r, &input) {
+		return
+	}
+	if !slices.Contains([]string{"daily", "weekly", "fortnightly", "monthly", "off"}, input.Frequency) {
+		problem(w, 400, "Fréquence de sauvegarde invalide.")
+		return
+	}
+	if !a.backupMu.TryLock() {
+		problem(w, 409, "Une opération sur les sauvegardes est en cours. Réessayez.")
+		return
+	}
+	defer a.backupMu.Unlock()
+	if _, err := a.db.Exec("UPDATE backup_preferences SET frequency=? WHERE id=1", input.Frequency); err != nil {
+		internal(w, err)
+		return
+	}
+	w.WriteHeader(204)
+}
+
+func (a *application) purgeBackups(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Confirmed bool `json:"confirmed"`
+	}
+	if !decode(w, r, &input) {
+		return
+	}
+	if !input.Confirmed {
+		problem(w, 400, "Confirmez la suppression des sauvegardes.")
+		return
+	}
+	if !a.backupMu.TryLock() {
+		problem(w, 409, "Une opération sur les sauvegardes est en cours. Réessayez.")
+		return
+	}
+	defer a.backupMu.Unlock()
+	list, err := a.backupList()
+	if err != nil {
+		internal(w, err)
+		return
+	}
+	if len(list) == 0 {
+		w.WriteHeader(204)
+		return
+	}
+	if _, err := a.db.Exec("UPDATE backup_preferences SET last_purge=? WHERE id=1", time.Now().Unix()); err != nil {
+		internal(w, err)
+		return
+	}
+
+	dir := filepath.Join(a.data, backups)
+	var failures []error
+	for _, b := range list {
+		if err := os.Remove(filepath.Join(dir, b.Name)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			failures = append(failures, err)
+		}
+	}
+	if err := errors.Join(append(failures, syncDir(dir))...); err != nil {
+		log.Printf("Purge des sauvegardes : %v", err)
+		problem(w, 500, "La purge n’a pas pu être terminée. Actualisez la liste avant de réessayer.")
+		return
+	}
+	w.WriteHeader(204)
+}
+
+func (a *application) runScheduledBackup(now time.Time) error {
+	plan, err := a.backupPlan()
+	if err != nil || plan.Frequency == "off" {
+		return err
+	}
+	list, err := a.backupList()
+	if err != nil {
+		return err
+	}
+	var last time.Time
+	if len(list) > 0 {
+		last = list[0].At
+	}
+	if !plan.due(now, last) {
+		return nil
+	}
+	_, err = a.createBackup()
+	return err
+}
+
 func (a *application) maintenance(ctx context.Context) {
 	run := func() {
 		a.mu.Lock()
@@ -123,11 +253,7 @@ func (a *application) maintenance(ctx context.Context) {
 				}
 			}
 		}
-		list, err := a.backupList()
-		if err == nil && (len(list) == 0 || list[0].At.In(paris).Format(time.DateOnly) != time.Now().In(paris).Format(time.DateOnly)) {
-			_, err = a.createBackup()
-		}
-		if err != nil {
+		if err := a.runScheduledBackup(time.Now()); err != nil {
 			log.Printf("Sauvegarde automatique : %v", err)
 		}
 	}

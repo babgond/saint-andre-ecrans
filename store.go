@@ -60,6 +60,10 @@ CREATE TABLE IF NOT EXISTS screen_clock (
  id INTEGER PRIMARY KEY CHECK(id=1), enabled INTEGER NOT NULL, position TEXT NOT NULL
 );
 INSERT OR IGNORE INTO screen_clock (id,enabled,position) VALUES (1,0,'top-right');
+CREATE TABLE IF NOT EXISTS backup_preferences (
+ id INTEGER PRIMARY KEY CHECK(id=1), frequency TEXT NOT NULL, last_purge INTEGER NOT NULL
+);
+INSERT OR IGNORE INTO backup_preferences (id,frequency,last_purge) VALUES (1,'daily',0);
 `
 
 func openApp(root string) (*application, error) {
@@ -325,18 +329,24 @@ func (a *application) state(w http.ResponseWriter, r *http.Request) {
 		internal(w, err)
 		return
 	}
+	plan, err := a.backupPlan()
+	if err != nil {
+		internal(w, err)
+		return
+	}
 	jsonResponse(w, 200, struct {
-		Clock       screenClock   `json:"clock"`
-		DisplayName string        `json:"displayName"`
-		Images      []publication `json:"images"`
-		Settings    settings      `json:"settings"`
-		Used        int64         `json:"used"`
-		Free        int64         `json:"free"`
-		Total       int64         `json:"total"`
-		Today       string        `json:"today"`
-		Backups     []backupFile  `json:"backups"`
-		Account     string        `json:"account"`
-	}{clock, name, images, s, used, free, total, now.In(paris).Format("2006-01-02"), archives, a.session(r).Name})
+		Clock           screenClock   `json:"clock"`
+		DisplayName     string        `json:"displayName"`
+		Images          []publication `json:"images"`
+		Settings        settings      `json:"settings"`
+		Used            int64         `json:"used"`
+		Free            int64         `json:"free"`
+		Total           int64         `json:"total"`
+		Today           string        `json:"today"`
+		BackupFrequency string        `json:"backupFrequency"`
+		Backups         []backupFile  `json:"backups"`
+		Account         string        `json:"account"`
+	}{clock, name, images, s, used, free, total, now.In(paris).Format("2006-01-02"), plan.Frequency, archives, a.session(r).Name})
 }
 
 func folderSize(path string) (int64, error) {

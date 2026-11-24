@@ -221,6 +221,10 @@
       'top-left': 'En haut à gauche', 'top-center': 'En haut au centre', 'top-right': 'En haut à droite',
       'bottom-left': 'En bas à gauche', 'bottom-center': 'En bas au centre', 'bottom-right': 'En bas à droite'
     };
+    const backupFrequencies = {
+      daily: 'Toutes les 24 heures', weekly: 'Une fois par semaine',
+      fortnightly: 'Tous les 15 jours', monthly: 'Une fois par mois', off: 'Aucune sauvegarde automatique'
+    };
     const options = { fade: 'Fondu', zoom: 'Zoom lent', slide: 'Glissement', black: 'Fondu noir', none: 'Aucun effet' };
     return intro('Paramètres', 'Réglez l’affichage et gérez les sauvegardes.') + lowDisk() +
       '<div class="settings-grid"><form class="card" id="display-settings"><h2>Diffusion</h2>' +
@@ -244,8 +248,13 @@
         '<option value="' + key + '" ' + (key === clock.position ? 'selected' : '') + '>' + label + '</option>').join('') + '</select></label>' +
       '<p class="muted small">Heure de Paris, au format 24 h.</p><button type="submit" class="button primary">Enregistrer l’horloge</button></form>' +
       '<section class="card"><div><h2>Stockage et sauvegardes</h2><p class="muted small">' + bytes(data.used) + ' utilisés · ' + bytes(data.free) + ' libres sur le volume</p></div>' +
-      '<p class="muted">Une sauvegarde est créée chaque jour. Téléchargez une copie pour la conserver hors du VPS.</p>' +
-      button('Créer une sauvegarde', 'backup') + (data.backups.length ? '<ul class="compact-list">' + data.backups.map(b =>
+      '<form class="stack" id="backup-settings"><label class="field">Fréquence des sauvegardes automatiques<select name="frequency">' +
+      Object.entries(backupFrequencies).map(([key, label]) => '<option value="' + key + '" ' +
+        (key === data.backupFrequency ? 'selected' : '') + '>' + label + '</option>').join('') +
+      '</select></label><button type="submit" class="button primary">Enregistrer la fréquence</button></form>' +
+      '<div class="row-controls">' + button('Créer une sauvegarde', 'backup') +
+      (data.backups.length ? button('Purger les sauvegardes', 'purge-backups', 'danger') : '') + '</div>' +
+      (data.backups.length ? '<ul class="compact-list">' + data.backups.map(b =>
         '<li><a href="/api/admin/backups/' + encodeURIComponent(b.name) + '">Télécharger la sauvegarde du ' + html(dateFmt.format(new Date(b.at))) +
         '</a><span>' + bytes(b.bytes) + '</span></li>').join('') + '</ul>' : '<p class="muted small">Aucune sauvegarde disponible.</p>') + '</section>' +
       '<section class="card"><h2>Authentification</h2><p>Microsoft Entra ID · ' + html(data.account) + '</p><p class="muted small">Les comptes autorisés sont définis dans la configuration du serveur.</p></section></div>';
@@ -512,6 +521,14 @@
         case 'next-month': month.setUTCMonth(month.getUTCMonth() + (action === 'next-month' ? 1 : -1)); render(); break;
         case 'remove-logo': confirmAction('Retirer le logo', 'L’écran de veille affichera « ' + html(data.displayName) + ' ».',
           'Retirer le logo', async () => { await api('/api/admin/logo', { method: 'DELETE' }); await updated('Logo retiré.'); }); break;
+        case 'purge-backups':
+          confirmAction('Purger les sauvegardes',
+            'Toutes les archives de sauvegarde stockées sur le serveur seront supprimées définitivement.',
+            'Supprimer toutes les archives', async () => {
+              await json('backups/purge', 'POST', { confirmed: true });
+              await updated('Sauvegardes purgées.');
+            });
+          break;
         case 'backup':
           target.disabled = true;
           target.textContent = 'Sauvegarde en cours…';
@@ -562,7 +579,7 @@
   });
   content.addEventListener('submit', async e => {
     const f = e.target;
-    if (f.id !== 'display-settings' && f.id !== 'logo-settings' && f.id !== 'name-settings' && f.id !== 'clock-settings') return;
+    if (f.id !== 'display-settings' && f.id !== 'logo-settings' && f.id !== 'name-settings' && f.id !== 'clock-settings' && f.id !== 'backup-settings') return;
     e.preventDefault();
     const submit = f.querySelector('[type=submit]');
     if (submit.disabled) return;
@@ -573,6 +590,9 @@
         await json('settings', 'PUT', { duration: Number(fields.duration.value), transition: fields.transition.value,
           transitionMs: Math.round(Number(fields.seconds.value) * 1000), fallback: fields.fallback.checked });
         await updated('Paramètres enregistrés.');
+      } else if (f.id === 'backup-settings') {
+        await json('backup-frequency', 'PUT', { frequency: f.elements.frequency.value });
+        await updated('Fréquence de sauvegarde enregistrée.');
       } else if (f.id === 'clock-settings') {
         await json('clock', 'PUT', { enabled: f.elements.enabled.checked, position: f.elements.position.value });
         await updated('Horloge enregistrée.');

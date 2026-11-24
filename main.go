@@ -107,6 +107,8 @@ func (a *application) routes() http.Handler {
 	mux.HandleFunc("POST /api/admin/logo", a.protected(a.logo))
 	mux.HandleFunc("DELETE /api/admin/logo", a.protected(a.removeLogo))
 	mux.HandleFunc("POST /api/admin/backups", a.protected(a.makeBackup))
+	mux.HandleFunc("PUT /api/admin/backup-frequency", a.protected(a.saveBackupFrequency))
+	mux.HandleFunc("POST /api/admin/backups/purge", a.protected(a.purgeBackups))
 	mux.HandleFunc("GET /api/admin/backups/{file}", a.protected(a.getBackup))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
